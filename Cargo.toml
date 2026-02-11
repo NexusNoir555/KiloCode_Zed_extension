@@ -8,15 +8,12 @@ repository = "https://github.com/NexusNoir555/KiloCode_Zed_extension"
 authors = ["NexusNoir555 <NexusNoir555@proton.me>"]
 
 [lib]
-path = "src/kilocode.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
 zed_extension_api = "0.1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-reqwest = { version = "0.12", features = ["json"] }
-tokio = { version = "1.0", features = ["full"] }
 
 [profile.release]
 opt-level = "s"
