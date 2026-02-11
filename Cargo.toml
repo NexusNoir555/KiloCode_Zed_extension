@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "AI-powered coding assistant for Zed"
-repository = "https://github.com/YOUR_USERNAME/kilocode-zed"
-authors = ["KiloCode Contributors"]
+repository = "https://github.com/NexusNoir555/KiloCode_Zed_extension"
+authors = ["NexusNoir555 <NexusNoir555@proton.me>"]
 
 [lib]
 path = "src/kilocode.rs"
