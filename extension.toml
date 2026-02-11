@@ -1,0 +1,36 @@
+# KiloCode Extension for Zed
+# Users must configure their own API endpoint and credentials in Zed settings
+
+[extension]
+id = "kilocode"
+name = "KiloCode"
+description = "AI-powered coding assistant for Zed. Ask questions, explain code, generate code, refactor, fix bugs, and generate documentation."
+version = "0.1.0"
+schema_version = 1
+authors = ["KiloCode Contributors"]
+repository = "https://github.com/NexusNoir555/KiloCode_Zed_extension"
+license = "MIT"
+
+[slash_commands.kc]
+description = "Ask KiloCode AI assistant for help with your code"
+requires_argument = true
+
+[slash_commands.kc-explain]
+description = "Explain the selected code or current file"
+requires_argument = false
+
+[slash_commands.kc-generate]
+description = "Generate code from a description"
+requires_argument = true
+
+[slash_commands.kc-refactor]
+description = "Suggest refactoring for the selected code"
+requires_argument = false
+
+[slash_commands.kc-fix]
+description = "Detect and fix bugs in the selected code"
+requires_argument = false
+
+[slash_commands.kc-docs]
+description = "Generate documentation for the selected code"
+requires_argument = false
