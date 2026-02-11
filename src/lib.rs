@@ -1,39 +1,32 @@
 // KiloCode Extension for Zed
-// Users must configure their own API endpoint and credentials in Zed settings
-// No personal credentials are included in this extension
+// AI-powered coding assistant for Zed
+// Works with OpenAI-compatible APIs including free providers like Groq, Together AI, and OpenRouter
 
-use zed_extension_api as zed;
+mod api_client;
 
-struct KiloCodeExtension;
+use zed_extension_api::{
+    self as zed, SlashCommand, SlashCommandOutput, Worktree,
+};
 
-impl KiloCodeExtension {
-    // Get API endpoint from settings or use default
-    fn get_api_endpoint(settings: &zed::Settings) -> String {
-        settings
-            .get("kilocode.api_endpoint")
-            .and_then(|v| v.as_str())
-            .unwrap_or("https://api.kilocode.ai/v1")
-            .to_string()
+struct KiloCodeExtensionWrapper {
+    client: Option<api_client::KiloCodeClient>,
+}
+
+impl KiloCodeExtensionWrapper {
+    fn new() -> Self {
+        Self { client: None }
     }
 
-    // Get API key from settings
-    fn get_api_key(settings: &zed::Settings) -> Result<String, String> {
-        settings
-            .get("kilocode.api_key")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| {
-                "API key not configured. Please set 'kilocode.api_key' in Zed settings.".to_string()
-            })
-    }
-
-    // Get model from settings or use default
-    fn get_model(settings: &zed::Settings) -> String {
-        settings
-            .get("kilocode.model")
-            .and_then(|v| v.as_str())
-            .unwrap_or("gpt-4")
-            .to_string()
+    // Get or create the API client
+    fn get_client(&mut self) -> Result<&api_client::KiloCodeClient, String> {
+        if self.client.is_none() {
+            // Try to get API key from environment variable
+            let api_key = std::env::var("KILOCODE_API_KEY")
+                .map_err(|_| "KILOCODE_API_KEY environment variable not set. Please set it to use KiloCode functionality.".to_string())?;
+            
+            self.client = Some(api_client::KiloCodeClient::new(api_key));
+        }
+        Ok(self.client.as_ref().unwrap())
     }
 
     // Validate input to prevent injection attacks
@@ -55,63 +48,44 @@ impl KiloCodeExtension {
             .replace("```cmd", "```")
     }
 
-    // Process chat request
-    fn process_chat(
-        &self,
-        prompt: &str,
-        code_context: Option<&str>,
-        settings: &zed::Settings,
-    ) -> Result<String, String> {
-        Self::validate_input(prompt)?;
+    // Get selected code from worktree (placeholder - needs implementation)
+    fn get_selected_code(_worktree: Option<&Worktree>) -> Result<Option<String>, String> {
+        // TODO: Implement code selection reading from editor
+        // This requires accessing the editor's selection through the Worktree API
+        Ok(None)
+    }
 
-        let _endpoint = Self::get_api_endpoint(settings);
-        let _api_key = Self::get_api_key(settings)?;
-        let _model = Self::get_model(settings);
-
-        // Build the system message
-        let system_message = "You are KiloCode, an AI coding assistant. Help users with their coding questions, explain code, generate code, refactor, fix bugs, and generate documentation. Be concise and helpful.";
-
-        // Build the full prompt
-        let full_prompt = if let Some(code) = code_context {
-            format!(
-                "{}\n\nCurrent code context:\n```\n{}\n```\n\nUser: {}",
-                system_message, code, prompt
-            )
-        } else {
-            format!("{}\n\nUser: {}", system_message, prompt)
-        };
-
-        // For now, return a placeholder response
-        // In a full implementation, this would make an HTTP request to the API
-        let result = format!(
-            "KiloCode Response:\n\nEndpoint: {}\nModel: {}\n\nThis is a placeholder response. The full implementation would make an HTTP request to the API endpoint with the following prompt:\n\n{}",
-            _endpoint, _model, full_prompt
-        );
-
-        Ok(Self::sanitize_output(&result))
+    // Detect language from file extension (placeholder)
+    fn detect_language(_worktree: Option<&Worktree>) -> Option<String> {
+        // TODO: Implement language detection from file extension
+        None
     }
 }
 
-impl zed::Extension for KiloCodeExtension {
+impl zed::Extension for KiloCodeExtensionWrapper {
     fn new() -> Self {
-        Self
+        Self::new()
     }
 
     fn run_slash_command(
-        &self,
-        command: zed::SlashCommand,
+        &mut self,
+        command: SlashCommand,
         args: Vec<String>,
-        worktree: Option<&zed::Worktree>,
-    ) -> Result<zed::SlashCommandOutput, String> {
-        // Get settings
-        let settings = zed::settings();
-
+        worktree: Option<&Worktree>,
+    ) -> Result<SlashCommandOutput, String> {
         let prompt = args.join(" ");
-        let code_context = worktree.and_then(|_| None); // In real implementation, get selected code
+        let code_context = self.get_selected_code(worktree)?;
+        let language = self.detect_language(worktree);
 
         let result = match command.name.as_str() {
             "kc" => {
-                self.process_chat(&prompt, code_context, &settings)?
+                if prompt.is_empty() {
+                    return Err("Please provide a question or prompt for KiloCode.".to_string());
+                }
+                Self::validate_input(&prompt)?;
+                let client = self.get_client()?;
+                let response = client.chat(&prompt, code_context.as_deref(), None)?;
+                Self::sanitize_output(&response)
             }
             "kc-explain" => {
                 let explanation_prompt = if prompt.is_empty() {
@@ -119,44 +93,77 @@ impl zed::Extension for KiloCodeExtension {
                 } else {
                     format!("Explain this code: {}", prompt)
                 };
-                self.process_chat(&explanation_prompt, code_context, &settings)?
+                Self::validate_input(&explanation_prompt)?;
+                let client = self.get_client()?;
+                
+                // If we have code context, explain it; otherwise use the prompt
+                if let Some(code) = code_context {
+                    client.explain_code(&code, language.as_deref())?
+                } else {
+                    client.chat(&explanation_prompt, None, None)?
+                }
             }
             "kc-generate" => {
-                let generate_prompt = format!("Generate code for: {}", prompt);
-                self.process_chat(&generate_prompt, None, &settings)?
+                if prompt.is_empty() {
+                    return Err("Please provide a description of the code you want to generate.".to_string());
+                }
+                Self::validate_input(&prompt)?;
+                let client = self.get_client()?;
+                client.generate_code(&prompt, code_context.as_deref(), language.as_deref())?
             }
             "kc-refactor" => {
                 let refactor_prompt = if prompt.is_empty() {
                     "Suggest refactoring improvements for this code to make it more readable, maintainable, and efficient.".to_string()
                 } else {
-                    format!("Refactor this code: {}", prompt)
+                    prompt.clone()
                 };
-                self.process_chat(&refactor_prompt, code_context, &settings)?
+                Self::validate_input(&refactor_prompt)?;
+                let client = self.get_client()?;
+                
+                if let Some(code) = code_context {
+                    client.refactor_code(&code, &refactor_prompt, language.as_deref())?
+                } else {
+                    client.chat(&refactor_prompt, None, None)?
+                }
             }
             "kc-fix" => {
                 let fix_prompt = if prompt.is_empty() {
                     "Analyze this code for bugs and issues, then provide fixes.".to_string()
                 } else {
-                    format!("Fix this code: {}", prompt)
+                    prompt.clone()
                 };
-                self.process_chat(&fix_prompt, code_context, &settings)?
+                Self::validate_input(&fix_prompt)?;
+                let client = self.get_client()?;
+                
+                if let Some(code) = code_context {
+                    client.fix_code(&code, Some(&fix_prompt), language.as_deref())?
+                } else {
+                    client.chat(&fix_prompt, None, None)?
+                }
             }
             "kc-docs" => {
                 let docs_prompt = if prompt.is_empty() {
                     "Generate comprehensive documentation for this code, including function descriptions, parameter explanations, and usage examples.".to_string()
                 } else {
-                    format!("Generate documentation for: {}", prompt)
+                    prompt.clone()
                 };
-                self.process_chat(&docs_prompt, code_context, &settings)?
+                Self::validate_input(&docs_prompt)?;
+                let client = self.get_client()?;
+                
+                if let Some(code) = code_context {
+                    client.generate_docs(&code, language.as_deref(), Some("rustdoc"))?
+                } else {
+                    client.chat(&docs_prompt, None, None)?
+                }
             }
-            _ => return Err(format!("Unknown command: {}", command.name)),
+            _ => return Err(format!("Unknown slash command: {}", command.name)),
         };
 
-        Ok(zed::SlashCommandOutput {
+        Ok(SlashCommandOutput {
             sections: vec![],
             text: result,
         })
     }
 }
 
-zed::register_extension!(KiloCodeExtension);
+zed::register_extension!(KiloCodeExtensionWrapper);

@@ -1,6 +1,6 @@
 id = "kilocode"
 name = "KiloCode"
-description = "AI-powered coding assistant for Zed. Ask questions, explain code, generate code, refactor, fix bugs, and generate documentation."
+description = "AI-powered coding assistant for Zed. Works with OpenAI-compatible APIs including free providers like Groq, Together AI, and OpenRouter. Ask questions, explain code, generate code, refactor, fix bugs, and generate documentation."
 version = "0.1.0"
 schema_version = 1
 authors = ["NexusNoir555 <NexusNoir555@proton.me>"]
