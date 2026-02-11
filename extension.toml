@@ -1,6 +1,3 @@
-# KiloCode Extension for Zed
-# Users must configure their own API endpoint and credentials in Zed settings
-
 [extension]
 id = "kilocode"
 name = "KiloCode"
